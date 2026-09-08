@@ -101,7 +101,13 @@ def _(filtered, go):
         hoverinfo="text", name="Charger (red=Tesla, blue=EVgo)",
     ))
     fig.update_layout(
-        map=dict(style="open-street-map", zoom=7,
+        # "open-street-map" hits tile.openstreetmap.org directly, which
+        # blocks requests with no Referer (the header a locally-served
+        # marimo app doesn't send, and that browsers won't let us set) per
+        # OSM's tile usage policy. carto-voyager is rendered from the same
+        # OSM data but served from CARTO's CDN, built for this kind of
+        # embedding — no token, no referer restriction.
+        map=dict(style="carto-voyager", zoom=7,
                  center=dict(lat=43.5, lon=-71.5)),
         margin=dict(l=0, r=0, t=0, b=0),
         height=650,
