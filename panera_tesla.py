@@ -13,6 +13,8 @@ import time
 from math import asin, cos, radians, sin, sqrt
 
 import requests
+import yaml
+from plumbum import local
 
 OVERPASS = "https://overpass-api.de/api/interpreter"
 OCM = "https://api.openchargemap.io/v3/poi/"
@@ -226,6 +228,11 @@ def find_matches(paneras, chargers):
                     "distance_mi": round(d, 2),
                 })
     return sorted(matches, key=lambda m: m["distance_mi"])
+
+
+def write_matches_yaml(matches, path):
+    """Write matches as YAML to path (str or path-like)."""
+    local.path(path).write(yaml.safe_dump(matches, sort_keys=False))
 
 
 def main():

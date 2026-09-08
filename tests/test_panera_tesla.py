@@ -97,3 +97,17 @@ def test_find_matches_includes_charger_coords_and_network():
     assert m["charger_lat"] == 42.001
     assert m["charger_lon"] == -71.001
     assert m["network"] == "Tesla (Tesla-only charging)"
+
+
+def test_write_matches_yaml_roundtrip(tmp_path):
+    import yaml
+
+    matches = [{"panera_name": "Panera Bread", "distance_mi": 0.12,
+                "charger_lat": 42.1, "network": "eVgo Network"}]
+    out = tmp_path / "matches.yml"
+
+    pt.write_matches_yaml(matches, out)
+
+    assert out.exists()
+    loaded = yaml.safe_load(out.read_text())
+    assert loaded == matches

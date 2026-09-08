@@ -6,6 +6,10 @@ requires-python = ">=3.10"
 dependencies = [
     "requests>=2.32",
     "pydash>=8.0",
+    "pyyaml>=6.0.3",
+    "plumbum>=2.0.2",
+    "marimo>=0.24.0",
+    "plotly>=7.0.0",
 ]
 
 [dependency-groups]
