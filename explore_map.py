@@ -67,15 +67,24 @@ def _(filtered, go):
         lines_lat += [_m["panera_lat"], _m["charger_lat"], None]
         lines_lon += [_m["panera_lon"], _m["charger_lon"], None]
 
-    network_colors = {"tesla": "#d62728", "evgo": "#1f77b4"}
+    # Three categories, each its own trace so the legend can toggle them
+    # individually: Tesla-only (black), Tesla open to non-Tesla cars (red),
+    # EVgo (blue).
+    CATEGORIES = [
+        ("Tesla (Tesla-only)", "#000000",
+         lambda n: "tesla" in n and "non-tesla" not in n and "including" not in n),
+        ("Tesla (open to non-Tesla)", "#d62728",
+         lambda n: "tesla" in n and ("non-tesla" in n or "including" in n)),
+        ("EVgo", "#1f77b4",
+         lambda n: "evgo" in n or "nrg" in n),
+    ]
 
-    def color_for(network):
+    def categorize(network):
         n = (network or "").lower()
-        if "tesla" in n:
-            return network_colors["tesla"]
-        if "evgo" in n or "nrg" in n:
-            return network_colors["evgo"]
-        return "#7f7f7f"
+        for label, color, match in CATEGORIES:
+            if match(n):
+                return label, color
+        return "Other", "#7f7f7f"
 
     fig = go.Figure()
     fig.add_trace(go.Scattermap(
@@ -91,15 +100,20 @@ def _(filtered, go):
         text=[f"{_m['panera_name']}<br>{_m['panera_address']}" for _m in filtered],
         hoverinfo="text", name="Panera",
     ))
-    fig.add_trace(go.Scattermap(
-        lat=[_m["charger_lat"] for _m in filtered],
-        lon=[_m["charger_lon"] for _m in filtered],
-        mode="markers",
-        marker=dict(size=10, color=[color_for(_m["network"]) for _m in filtered]),
-        text=[f"{_m['charger_title']}<br>{_m['charger_address']}<br>{_m['network']}"
-              for _m in filtered],
-        hoverinfo="text", name="Charger (red=Tesla, blue=EVgo)",
-    ))
+    labels_colors = [(label, color) for label, color, _ in CATEGORIES] + [("Other", "#7f7f7f")]
+    for label, color in labels_colors:
+        group = [_m for _m in filtered if categorize(_m["network"])[0] == label]
+        if not group:
+            continue
+        fig.add_trace(go.Scattermap(
+            lat=[_m["charger_lat"] for _m in group],
+            lon=[_m["charger_lon"] for _m in group],
+            mode="markers",
+            marker=dict(size=10, color=color),
+            text=[f"{_m['charger_title']}<br>{_m['charger_address']}<br>{_m['network']}"
+                  for _m in group],
+            hoverinfo="text", name=label,
+        ))
     fig.update_layout(
         # "open-street-map" hits tile.openstreetmap.org directly, which
         # blocks requests with no Referer (the header a locally-served
