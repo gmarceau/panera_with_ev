@@ -1,3 +1,5 @@
+import pytest
+
 import panera_tesla as pt
 
 
@@ -19,3 +21,21 @@ def test_in_new_england_accepts_abbrev_name_and_case():
     assert not pt.in_new_england("New York")
     assert not pt.in_new_england(None)
     assert not pt.in_new_england("")
+
+
+def test_operator_ids_for_single_network():
+    assert pt.operator_ids_for(["tesla"]) == pt.NETWORK_OPERATOR_IDS["tesla"]
+
+
+def test_operator_ids_for_multiple_networks():
+    ids = pt.operator_ids_for(["tesla", "evgo"])
+    assert pt.NETWORK_OPERATOR_IDS["tesla"] in ids
+    assert pt.NETWORK_OPERATOR_IDS["evgo"] in ids
+    # every individual ID should appear, comma-joined, no duplicates lost
+    want = set((pt.NETWORK_OPERATOR_IDS["tesla"] + "," + pt.NETWORK_OPERATOR_IDS["evgo"]).split(","))
+    assert set(ids.split(",")) == want
+
+
+def test_operator_ids_for_unknown_network_raises():
+    with pytest.raises(ValueError):
+        pt.operator_ids_for(["chargepoint"])

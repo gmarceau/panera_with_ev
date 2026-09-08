@@ -30,13 +30,20 @@ NE_NAMES = {"connecticut", "massachusetts", "maine", "new hampshire",
 NE_BBOX = (40.95, -73.75, 47.50, -66.90)   # min_lat, min_lon, max_lat, max_lon
 
 # OCM referencedata IDs (https://api.openchargemap.io/v3/referencedata/),
-# looked up rather than guessed: Operators 23 = "Tesla (Tesla-only charging)",
-# 3534 = "Tesla (including non-tesla)" (NACS-opened Superchargers). Filtering
-# on these server-side replaces fragile "tesla"/"supercharger" substring
-# matching on operator/title text.
-TESLA_OPERATOR_IDS = "23,3534"
+# looked up rather than guessed. Filtering on these server-side replaces
+# fragile "tesla"/"supercharger" substring matching on operator/title text.
+# Tesla: 23 = "Tesla (Tesla-only charging)", 3534 = "Tesla (including
+# non-tesla)" (NACS-opened Superchargers). EVgo: 15 = "eVgo Network",
+# 3252 = "NRG EVgo" (EVgo's prior brand name).
+NETWORK_OPERATOR_IDS = {
+    "tesla": "23,3534",
+    "evgo": "15,3252",
+}
+# TODO(slice 3): fetch_superchargers() still reads this directly; once it's
+# rewired to fetch_chargers(networks) via operator_ids_for(), drop this.
+TESLA_OPERATOR_IDS = NETWORK_OPERATOR_IDS["tesla"]
 # ChargerTypes level 3 = "High (Over 40kW)", i.e. DC fast charging — this
-# excludes Level 1/2 Tesla destination chargers without relying on each
+# excludes Level 1/2 destination/wall chargers without relying on each
 # connection's (often missing) PowerKW value.
 DC_FAST_LEVEL_ID = "3"
 
@@ -58,6 +65,20 @@ def haversine_miles(lat1, lon1, lat2, lon2):
 def in_new_england(state: str) -> bool:
     s = (state or "").strip().lower()
     return s in NE_ABBREVS or s in NE_NAMES
+
+
+def operator_ids_for(networks):
+    """Comma-joined OCM operator IDs for the given network names.
+
+    e.g. operator_ids_for(["tesla", "evgo"]) -> "23,3534,15,3252"
+    """
+    try:
+        return ",".join(NETWORK_OPERATOR_IDS[n] for n in networks)
+    except KeyError as exc:
+        raise ValueError(
+            f"unknown charger network {exc.args[0]!r}; "
+            f"known networks: {sorted(NETWORK_OPERATOR_IDS)}"
+        ) from exc
 
 
 def _request_with_retry(method, url, *, attempts=3, backoff=15, **kwargs):
