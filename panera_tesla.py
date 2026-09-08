@@ -1,12 +1,10 @@
 #!/usr/bin/env python3
 """
-Finds Panera Bread locations in New England within walking distance
-of a Tesla supercharger. Outputs panera_superchargers.csv.
-
-pip install requests
+Finds Panera Bread locations in New England within walking distance of a
+fast EV charger (Tesla Supercharger and/or EVgo). Outputs a YAML file of
+matches (see PaneraChargerApp --help).
 """
 
-import csv
 import json
 import os
 import time
@@ -15,6 +13,7 @@ from math import asin, cos, radians, sin, sqrt
 import requests
 import yaml
 from plumbum import cli, local
+from plumbum.cli.terminal import Progress
 
 OVERPASS = "https://overpass-api.de/api/interpreter"
 OCM = "https://api.openchargemap.io/v3/poi/"
@@ -125,16 +124,16 @@ def _overpass_query(q, attempts=3, backoff=15):
         time.sleep(backoff)
 
 
-def fetch_paneras():
+def fetch_paneras(refresh=False):
     """Panera locations in the six New England states, from OpenStreetMap.
 
     Cached to PANERA_CACHE_FILE for PANERA_CACHE_MAX_AGE seconds so a later
     failure in the pipeline (e.g. the OpenChargeMap call) doesn't force
-    re-running all six slow, rate-limited Overpass queries. Delete the cache
-    file to force an immediate refresh.
+    re-running all six slow, rate-limited Overpass queries. Pass
+    refresh=True (or delete the cache file) to force an immediate refresh.
     """
     cache = local.path(PANERA_CACHE_FILE)
-    if cache_is_fresh(cache, PANERA_CACHE_MAX_AGE):
+    if not refresh and cache_is_fresh(cache, PANERA_CACHE_MAX_AGE):
         age_h = (time.time() - cache.stat().st_mtime) / 3600
         print(f"  (using {PANERA_CACHE_FILE}, {age_h:.1f}h old)")
         return json.loads(cache.read())
@@ -149,7 +148,7 @@ def fetch_paneras():
     out center;
     """
     paneras, seen = [], set()
-    for code in NE_STATES:
+    for code in Progress(NE_STATES, length=len(NE_STATES)):
         q = query_tpl.format(code=code)
         data = _overpass_query(q)
         for el in data.get("elements", []):
@@ -219,12 +218,12 @@ def fetch_chargers(networks=("tesla", "evgo")):
     return found
 
 
-def find_matches(paneras, chargers):
+def find_matches(paneras, chargers, max_miles=WALK_MILES):
     matches = []
     for p in paneras:
         for c in chargers:
             d = haversine_miles(p["lat"], p["lon"], c["lat"], c["lon"])
-            if d <= WALK_MILES:
+            if d <= max_miles:
                 matches.append({
                     "panera_name": p["name"], "panera_address": p["address"],
                     "panera_lat": p["lat"], "panera_lon": p["lon"],
@@ -242,8 +241,23 @@ def write_matches_yaml(matches, path):
 
 
 def run_pipeline(walk_miles, networks, output_path, refresh):
-    """Fetch, match, and write output. Implemented in slice 8."""
-    raise NotImplementedError
+    print("Fetching Panera locations (OpenStreetMap)...")
+    paneras = fetch_paneras(refresh=refresh)
+    print(f"  {len(paneras)} Paneras")
+
+    print("Fetching fast chargers (OpenChargeMap)...")
+    chargers = fetch_chargers(networks)
+    print(f"  {len(chargers)} chargers")
+
+    matches = find_matches(paneras, chargers, max_miles=walk_miles)
+    print(f"\n{len(matches)} Panera/charger pairs within {walk_miles} mi:\n")
+    for m in matches:
+        print(f"  {m['distance_mi']:.2f} mi | {m['panera_name']}"
+              f" ({m['panera_address']})  <->  {m['charger_title']} [{m['network']}]")
+
+    if matches:
+        write_matches_yaml(matches, output_path)
+        print(f"\nWrote {output_path}")
 
 
 class PaneraChargerApp(cli.Application):
@@ -271,28 +285,5 @@ class PaneraChargerApp(cli.Application):
         )
 
 
-def main():
-    print("Fetching Panera locations (OpenStreetMap)...")
-    paneras = fetch_paneras()
-    print(f"  {len(paneras)} Paneras")
-
-    print("Fetching fast chargers (OpenChargeMap)...")
-    chargers = fetch_chargers()
-    print(f"  {len(chargers)} chargers")
-
-    matches = find_matches(paneras, chargers)
-    print(f"\n{len(matches)} Panera/supercharger pairs within {WALK_MILES} mi:\n")
-    for m in matches:
-        print(f"  {m['distance_mi']:.2f} mi | {m['panera_name']}"
-              f" ({m['panera_address']})  <->  {m['charger_title']}")
-
-    if matches:
-        with open("panera_superchargers.csv", "w", newline="") as f:
-            w = csv.DictWriter(f, fieldnames=list(matches[0].keys()))
-            w.writeheader()
-            w.writerows(matches)
-        print("\nWrote panera_superchargers.csv")
-
-
 if __name__ == "__main__":
-    main()
+    PaneraChargerApp.run()

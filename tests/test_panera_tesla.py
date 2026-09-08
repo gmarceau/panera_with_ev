@@ -162,3 +162,25 @@ def test_cli_overrides(monkeypatch):
     assert calls[0]["networks"] == ["evgo"]
     assert calls[0]["output_path"] == "out.yml"
     assert calls[0]["refresh"] is True
+
+
+def test_run_pipeline_writes_yaml(tmp_path, monkeypatch, capsys):
+    import yaml
+
+    fake_paneras = [{"name": "Panera Bread", "address": "1 Elm St", "lat": 42.0, "lon": -71.0}]
+    fake_chargers = [{"title": "Nearby Charger", "address": "2 Elm St",
+                       "network": "eVgo Network", "lat": 42.001, "lon": -71.001}]
+    monkeypatch.setattr(pt, "fetch_paneras", lambda refresh=False: fake_paneras)
+    monkeypatch.setattr(pt, "fetch_chargers", lambda networks: fake_chargers)
+    out = tmp_path / "out.yml"
+
+    pt.run_pipeline(walk_miles=0.5, networks=["evgo"], output_path=str(out), refresh=False)
+
+    loaded = yaml.safe_load(out.read_text())
+    assert len(loaded) == 1
+    assert loaded[0]["panera_name"] == "Panera Bread"
+    assert loaded[0]["network"] == "eVgo Network"
+    captured = capsys.readouterr()
+    assert "1 Paneras" in captured.out
+    assert "1 chargers" in captured.out
+    assert "1 Panera/charger pairs" in captured.out
