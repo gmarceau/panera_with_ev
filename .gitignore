@@ -4,3 +4,11 @@
 *.db
 .beads-credential-key
 .beads/proxieddb/
+
+# panera_tesla.py generated output
+__pycache__/
+paneras_cache.json
+panera_superchargers.csv
+
+# stray lock file
+.claude/scheduled_tasks.lock
