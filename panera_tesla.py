@@ -66,6 +66,14 @@ def in_new_england(state: str) -> bool:
     return s in NE_ABBREVS or s in NE_NAMES
 
 
+def cache_is_fresh(path, max_age):
+    """True if path exists and was modified within max_age seconds."""
+    p = local.path(path)
+    if not p.exists():
+        return False
+    return (time.time() - p.stat().st_mtime) < max_age
+
+
 def operator_ids_for(networks):
     """Comma-joined OCM operator IDs for the given network names.
 
@@ -125,12 +133,11 @@ def fetch_paneras():
     re-running all six slow, rate-limited Overpass queries. Delete the cache
     file to force an immediate refresh.
     """
-    if os.path.exists(PANERA_CACHE_FILE):
-        age = time.time() - os.path.getmtime(PANERA_CACHE_FILE)
-        if age < PANERA_CACHE_MAX_AGE:
-            print(f"  (using {PANERA_CACHE_FILE}, {age / 3600:.1f}h old)")
-            with open(PANERA_CACHE_FILE) as f:
-                return json.load(f)
+    cache = local.path(PANERA_CACHE_FILE)
+    if cache_is_fresh(cache, PANERA_CACHE_MAX_AGE):
+        age_h = (time.time() - cache.stat().st_mtime) / 3600
+        print(f"  (using {PANERA_CACHE_FILE}, {age_h:.1f}h old)")
+        return json.loads(cache.read())
 
     query_tpl = """
     [out:json][timeout:120];
@@ -163,8 +170,7 @@ def fetch_paneras():
                             "lat": pt["lat"], "lon": pt["lon"]})
         time.sleep(10)                                # be polite to the free API
 
-    with open(PANERA_CACHE_FILE, "w") as f:
-        json.dump(paneras, f)
+    cache.write(json.dumps(paneras))
     return paneras
 
 

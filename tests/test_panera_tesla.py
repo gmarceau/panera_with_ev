@@ -111,3 +111,25 @@ def test_write_matches_yaml_roundtrip(tmp_path):
     assert out.exists()
     loaded = yaml.safe_load(out.read_text())
     assert loaded == matches
+
+
+def test_cache_is_fresh_true_within_max_age(tmp_path):
+    f = tmp_path / "cache.json"
+    f.write_text("{}")
+    assert pt.cache_is_fresh(f, max_age=3600) is True
+
+
+def test_cache_is_fresh_false_past_max_age(tmp_path):
+    import os as _os
+    import time as _time
+
+    f = tmp_path / "cache.json"
+    f.write_text("{}")
+    old = _time.time() - 7200
+    _os.utime(f, (old, old))
+    assert pt.cache_is_fresh(f, max_age=3600) is False
+
+
+def test_cache_is_fresh_false_when_missing(tmp_path):
+    missing = tmp_path / "nope.json"
+    assert pt.cache_is_fresh(missing, max_age=3600) is False
