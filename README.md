@@ -1,6 +1,7 @@
 # Panera Bread and Fast Charger Finder
 
-This program finds Panera Bread stores in New England. It checks
+This program finds Panera Bread stores in New England and the
+mid-Atlantic (CT, ME, MA, NH, RI, VT, PA, NJ, NY, MD). It checks
 each store's distance to the nearest fast EV charger — Tesla
 Supercharger or EVgo. It keeps stores that are close enough to walk
 to a charger.
@@ -47,7 +48,7 @@ uv run panera_tesla.py
 
 The program does four things:
 
-1. It downloads the list of Panera Bread stores in six New England
+1. It downloads the list of Panera Bread stores in the ten target
    states. It gets this list from OpenStreetMap.
 2. It downloads the list of fast chargers in the same states — Tesla
    Superchargers and EVgo stations by default. It gets this list

@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-Finds Panera Bread locations in New England within walking distance of a
-fast EV charger (Tesla Supercharger and/or EVgo). Outputs a YAML file of
-matches (see PaneraChargerApp --help).
+Finds Panera Bread locations in New England and the mid-Atlantic within
+walking distance of a fast EV charger (Tesla Supercharger and/or EVgo).
+Outputs a YAML file of matches (see PaneraChargerApp --help).
 """
 
 import json
@@ -24,11 +24,17 @@ UA = {"User-Agent": "panera-supercharger-finder (personal project)"}
 # rather not keep a key in source.
 OCM_API_KEY = os.environ.get("OCM_API_KEY", "a4aa4b45-a754-4380-a058-900687637713")
 
-NE_STATES = ["US-CT", "US-ME", "US-MA", "US-NH", "US-RI", "US-VT"]  # OSM area codes
-NE_ABBREVS = {"ct", "ma", "me", "nh", "ri", "vt"}
-NE_NAMES = {"connecticut", "massachusetts", "maine", "new hampshire",
-            "rhode island", "vermont"}
-NE_BBOX = (40.95, -73.75, 47.50, -66.90)   # min_lat, min_lon, max_lat, max_lon
+# New England + mid-Atlantic. OSM area codes (ISO3166-2):
+TARGET_STATES = ["US-CT", "US-ME", "US-MA", "US-NH", "US-RI", "US-VT",
+                  "US-PA", "US-NJ", "US-NY", "US-MD"]
+STATE_ABBREVS = {"ct", "ma", "me", "nh", "ri", "vt", "pa", "nj", "ny", "md"}
+STATE_NAMES = {"connecticut", "massachusetts", "maine", "new hampshire",
+               "rhode island", "vermont", "pennsylvania", "new jersey",
+               "new york", "maryland"}
+# min_lat, min_lon, max_lat, max_lon. min_lat/min_lon widened south/west to
+# cover Maryland's southern tip (~37.9) and PA/NY's western edge (~-80.5);
+# max_lat/max_lon unchanged (Maine still the north/east extreme).
+SEARCH_BBOX = (37.80, -80.75, 47.50, -66.90)
 
 # OCM referencedata IDs (https://api.openchargemap.io/v3/referencedata/),
 # looked up rather than guessed. Filtering on these server-side replaces
@@ -60,9 +66,9 @@ def haversine_miles(lat1, lon1, lat2, lon2):
     return 2 * r * asin(min(1.0, sqrt(a)))
 
 
-def in_new_england(state: str) -> bool:
+def in_target_states(state: str) -> bool:
     s = (state or "").strip().lower()
-    return s in NE_ABBREVS or s in NE_NAMES
+    return s in STATE_ABBREVS or s in STATE_NAMES
 
 
 def cache_is_fresh(path, max_age):
@@ -125,7 +131,7 @@ def _overpass_query(q, attempts=3, backoff=15):
 
 
 def fetch_paneras(refresh=False):
-    """Panera locations in the six New England states, from OpenStreetMap.
+    """Panera locations in the target states, from OpenStreetMap.
 
     Cached to PANERA_CACHE_FILE for PANERA_CACHE_MAX_AGE seconds so a later
     failure in the pipeline (e.g. the OpenChargeMap call) doesn't force
@@ -148,7 +154,7 @@ def fetch_paneras(refresh=False):
     out center;
     """
     paneras, seen = [], set()
-    for code in Progress(NE_STATES, length=len(NE_STATES)):
+    for code in Progress(TARGET_STATES, length=len(TARGET_STATES)):
         q = query_tpl.format(code=code)
         data = _overpass_query(q)
         for el in data.get("elements", []):
@@ -174,8 +180,8 @@ def fetch_paneras(refresh=False):
 
 
 def fetch_chargers(networks=("tesla", "evgo")):
-    """Fast (DC) chargers for the given networks in New England, from OpenChargeMap."""
-    lat1, lon1, lat2, lon2 = NE_BBOX
+    """Fast (DC) chargers for the given networks in the target states, from OpenChargeMap."""
+    lat1, lon1, lat2, lon2 = SEARCH_BBOX
     params = {
         "output": "json",
         "countrycode": "US",
@@ -197,7 +203,7 @@ def fetch_chargers(networks=("tesla", "evgo")):
     found = []
     for poi in data:
         a = poi.get("AddressInfo") or {}
-        if not in_new_england(a.get("StateOrProvince")):
+        if not in_target_states(a.get("StateOrProvince")):
             continue
         # Belt-and-suspenders on top of the server-side levelid filter: also
         # require a connection actually rated at fast-charging power, in
@@ -261,7 +267,7 @@ def run_pipeline(walk_miles, networks, output_path, refresh):
 
 
 class PaneraChargerApp(cli.Application):
-    """Find Panera Bread stores near fast EV chargers in New England."""
+    """Find Panera Bread stores near fast EV chargers in New England and the mid-Atlantic."""
 
     walk_miles = cli.SwitchAttr(
         "--walk-miles", float, default=WALK_MILES,

@@ -12,15 +12,22 @@ def test_haversine_miles_one_degree_latitude_is_about_69_miles():
     assert 68.5 < d < 69.5
 
 
-def test_in_new_england_accepts_abbrev_name_and_case():
-    assert pt.in_new_england("CT")
-    assert pt.in_new_england("ct")
-    assert pt.in_new_england("Connecticut")
-    assert pt.in_new_england("CONNECTICUT")
-    assert pt.in_new_england(" vt ")
-    assert not pt.in_new_england("New York")
-    assert not pt.in_new_england(None)
-    assert not pt.in_new_england("")
+def test_in_target_states_accepts_abbrev_name_and_case():
+    assert pt.in_target_states("CT")
+    assert pt.in_target_states("ct")
+    assert pt.in_target_states("Connecticut")
+    assert pt.in_target_states("CONNECTICUT")
+    assert pt.in_target_states(" vt ")
+    assert not pt.in_target_states(None)
+    assert not pt.in_target_states("")
+
+
+def test_in_target_states_includes_mid_atlantic_expansion():
+    for abbrev in ["PA", "NJ", "NY", "MD"]:
+        assert pt.in_target_states(abbrev)
+    for name in ["Pennsylvania", "New Jersey", "New York", "Maryland"]:
+        assert pt.in_target_states(name)
+    assert not pt.in_target_states("Ohio")
 
 
 def test_operator_ids_for_single_network():

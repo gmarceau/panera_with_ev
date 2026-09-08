@@ -18,7 +18,8 @@ def _(mo):
     mo.md("""
     # Panera Bread / Fast Charger Explorer
 
-    New England Panera Bread stores matched to nearby Tesla Supercharger
+    Panera Bread stores across New England and the mid-Atlantic matched
+    to nearby Tesla Supercharger
     and EVgo fast-charging stations. Distance is straight-line, not a
     walking route — a match doesn't guarantee an actual walkable path.
     """)
@@ -121,8 +122,10 @@ def _(filtered, go):
         # OSM's tile usage policy. carto-voyager is rendered from the same
         # OSM data but served from CARTO's CDN, built for this kind of
         # embedding — no token, no referer restriction.
-        map=dict(style="carto-voyager", zoom=7,
-                 center=dict(lat=43.5, lon=-71.5)),
+        # fitbounds instead of a fixed center/zoom: the search region now
+        # spans New England down to Maryland, so a hardcoded view tuned for
+        # one corner of it would leave the rest off-screen.
+        map=dict(style="carto-voyager", fitbounds="locations"),
         margin=dict(l=0, r=0, t=0, b=0),
         height=650,
     )
