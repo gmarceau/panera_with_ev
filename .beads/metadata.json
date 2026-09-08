@@ -1,0 +1,7 @@
+{
+  "database": "dolt",
+  "backend": "dolt",
+  "dolt_mode": "embedded",
+  "dolt_database": "panera_tesla",
+  "project_id": "f14583d3-4efc-4fca-b496-ea405348cf42"
+}
