@@ -133,3 +133,32 @@ def test_cache_is_fresh_false_past_max_age(tmp_path):
 def test_cache_is_fresh_false_when_missing(tmp_path):
     missing = tmp_path / "nope.json"
     assert pt.cache_is_fresh(missing, max_age=3600) is False
+
+
+def test_cli_defaults(monkeypatch):
+    calls = []
+    monkeypatch.setattr(pt, "run_pipeline", lambda **kw: calls.append(kw))
+
+    pt.PaneraChargerApp.run(["prog"], exit=False)
+
+    assert len(calls) == 1
+    assert calls[0]["walk_miles"] == pt.WALK_MILES
+    assert calls[0]["networks"] == ["tesla", "evgo"]
+    assert calls[0]["output_path"] == "panera_chargers.yml"
+    assert calls[0]["refresh"] is False
+
+
+def test_cli_overrides(monkeypatch):
+    calls = []
+    monkeypatch.setattr(pt, "run_pipeline", lambda **kw: calls.append(kw))
+
+    pt.PaneraChargerApp.run(
+        ["prog", "--walk-miles", "0.3", "--networks", "evgo",
+         "--output", "out.yml", "--refresh"],
+        exit=False,
+    )
+
+    assert calls[0]["walk_miles"] == 0.3
+    assert calls[0]["networks"] == ["evgo"]
+    assert calls[0]["output_path"] == "out.yml"
+    assert calls[0]["refresh"] is True

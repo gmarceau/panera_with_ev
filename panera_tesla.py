@@ -14,7 +14,7 @@ from math import asin, cos, radians, sin, sqrt
 
 import requests
 import yaml
-from plumbum import local
+from plumbum import cli, local
 
 OVERPASS = "https://overpass-api.de/api/interpreter"
 OCM = "https://api.openchargemap.io/v3/poi/"
@@ -239,6 +239,36 @@ def find_matches(paneras, chargers):
 def write_matches_yaml(matches, path):
     """Write matches as YAML to path (str or path-like)."""
     local.path(path).write(yaml.safe_dump(matches, sort_keys=False))
+
+
+def run_pipeline(walk_miles, networks, output_path, refresh):
+    """Fetch, match, and write output. Implemented in slice 8."""
+    raise NotImplementedError
+
+
+class PaneraChargerApp(cli.Application):
+    """Find Panera Bread stores near fast EV chargers in New England."""
+
+    walk_miles = cli.SwitchAttr(
+        "--walk-miles", float, default=WALK_MILES,
+        help="Match distance cutoff, in miles")
+    networks = cli.SwitchAttr(
+        "--networks", str, default="tesla,evgo",
+        help="Comma-separated charger networks to include")
+    output = cli.SwitchAttr(
+        "--output", str, default="panera_chargers.yml",
+        help="Output YAML file path")
+    refresh = cli.Flag(
+        "--refresh", default=False,
+        help="Ignore the Panera cache and re-fetch from OpenStreetMap")
+
+    def main(self):
+        run_pipeline(
+            walk_miles=self.walk_miles,
+            networks=self.networks.split(","),
+            output_path=self.output,
+            refresh=self.refresh,
+        )
 
 
 def main():
