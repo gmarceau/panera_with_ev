@@ -221,6 +221,8 @@ def find_matches(paneras, chargers):
                     "panera_name": p["name"], "panera_address": p["address"],
                     "panera_lat": p["lat"], "panera_lon": p["lon"],
                     "charger_title": c["title"], "charger_address": c["address"],
+                    "charger_lat": c["lat"], "charger_lon": c["lon"],
+                    "network": c.get("network"),
                     "distance_mi": round(d, 2),
                 })
     return sorted(matches, key=lambda m: m["distance_mi"])

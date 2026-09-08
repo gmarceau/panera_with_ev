@@ -83,3 +83,17 @@ def test_fetch_chargers_filters_and_labels_network(monkeypatch):
     boston = next(c for c in chargers if c["title"] == "Boston Supercharger")
     assert boston["lat"] == 42.1 and boston["lon"] == -71.1
     assert boston["address"] == "1 Main St, Anytown, MA"
+
+
+def test_find_matches_includes_charger_coords_and_network():
+    paneras = [{"name": "Panera Bread", "address": "1 Elm St", "lat": 42.0, "lon": -71.0}]
+    chargers = [{"title": "Nearby Supercharger", "address": "2 Elm St",
+                 "network": "Tesla (Tesla-only charging)", "lat": 42.001, "lon": -71.001}]
+
+    matches = pt.find_matches(paneras, chargers)
+
+    assert len(matches) == 1
+    m = matches[0]
+    assert m["charger_lat"] == 42.001
+    assert m["charger_lon"] == -71.001
+    assert m["network"] == "Tesla (Tesla-only charging)"
