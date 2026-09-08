@@ -4,14 +4,16 @@
 *.db
 .beads-credential-key
 .beads/proxieddb/
+.beads/interactions.jsonl
 
 # uv-managed virtualenv
 .venv/
 
 # panera_tesla.py generated output
 __pycache__/
+.pytest_cache/
 paneras_cache.json
-panera_superchargers.csv
+panera_chargers.yml
 
 # stray lock file
 .claude/scheduled_tasks.lock
