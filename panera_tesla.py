@@ -39,9 +39,6 @@ NETWORK_OPERATOR_IDS = {
     "tesla": "23,3534",
     "evgo": "15,3252",
 }
-# TODO(slice 3): fetch_superchargers() still reads this directly; once it's
-# rewired to fetch_chargers(networks) via operator_ids_for(), drop this.
-TESLA_OPERATOR_IDS = NETWORK_OPERATOR_IDS["tesla"]
 # ChargerTypes level 3 = "High (Over 40kW)", i.e. DC fast charging — this
 # excludes Level 1/2 destination/wall chargers without relying on each
 # connection's (often missing) PowerKW value.
@@ -169,8 +166,8 @@ def fetch_paneras():
     return paneras
 
 
-def fetch_superchargers():
-    """Tesla superchargers in New England, from OpenChargeMap."""
+def fetch_chargers(networks=("tesla", "evgo")):
+    """Fast (DC) chargers for the given networks in New England, from OpenChargeMap."""
     lat1, lon1, lat2, lon2 = NE_BBOX
     params = {
         "output": "json",
@@ -179,8 +176,8 @@ def fetch_superchargers():
         # "minLat,minLon,maxLat,maxLon" form some docs describe — verified
         # empirically it needs the parenthesized corner-pair form instead.
         "boundingbox": f"({lat1},{lon1}),({lat2},{lon2})",
-        "operatorid": TESLA_OPERATOR_IDS,   # server-side "is this Tesla"
-        "levelid": DC_FAST_LEVEL_ID,        # server-side "is this DC fast"
+        "operatorid": operator_ids_for(networks),  # server-side "is this one of our networks"
+        "levelid": DC_FAST_LEVEL_ID,                # server-side "is this DC fast"
         "maxresults": 2000,
     }
     headers = {**UA, "X-API-Key": OCM_API_KEY}
@@ -196,8 +193,8 @@ def fetch_superchargers():
         if not in_new_england(a.get("StateOrProvince")):
             continue
         # Belt-and-suspenders on top of the server-side levelid filter: also
-        # require a connection actually rated at supercharger power, in case
-        # a POI's LevelID is stale relative to its connections.
+        # require a connection actually rated at fast-charging power, in
+        # case a POI's LevelID is stale relative to its connections.
         conns = poi.get("Connections") or []
         if not any((c.get("PowerKW") or 0) >= MIN_KW for c in conns):
             continue
@@ -206,9 +203,10 @@ def fetch_superchargers():
         lat, lon = a.get("Latitude"), a.get("Longitude")
         if lat is None or lon is None:
             continue
-        found.append({"title": a.get("Title") or "Tesla Supercharger",
+        found.append({"title": a.get("Title") or "Fast charger",
                       "address": ", ".join(x for x in [a.get("AddressLine1"),
                                      a.get("Town"), a.get("StateOrProvince")] if x),
+                      "network": (poi.get("OperatorInfo") or {}).get("Title"),
                       "lat": lat, "lon": lon})
     return found
 
@@ -233,9 +231,9 @@ def main():
     paneras = fetch_paneras()
     print(f"  {len(paneras)} Paneras")
 
-    print("Fetching Tesla superchargers (OpenChargeMap)...")
-    chargers = fetch_superchargers()
-    print(f"  {len(chargers)} superchargers")
+    print("Fetching fast chargers (OpenChargeMap)...")
+    chargers = fetch_chargers()
+    print(f"  {len(chargers)} chargers")
 
     matches = find_matches(paneras, chargers)
     print(f"\n{len(matches)} Panera/supercharger pairs within {WALK_MILES} mi:\n")
