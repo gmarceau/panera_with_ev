@@ -1,0 +1,18 @@
+[project]
+name = "panera-tesla"
+version = "0.1.0"
+description = "Panera Breads in New England located within walking distance of a Tesla supercharger"
+requires-python = ">=3.10"
+dependencies = [
+    "requests>=2.32",
+    "pydash>=8.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]

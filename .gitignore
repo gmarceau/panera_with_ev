@@ -5,6 +5,9 @@
 .beads-credential-key
 .beads/proxieddb/
 
+# uv-managed virtualenv
+.venv/
+
 # panera_tesla.py generated output
 __pycache__/
 paneras_cache.json
