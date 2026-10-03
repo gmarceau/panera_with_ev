@@ -19,8 +19,8 @@ def _(mo):
     # Panera Bread / Fast Charger Explorer
 
     Panera Bread stores across New England and the mid-Atlantic matched
-    to nearby Tesla Supercharger
-    and EVgo fast-charging stations. Distance is straight-line, not a
+    to nearby fast-charging stations (Tesla, EVgo, Rivian, Mercedes-Benz,
+    Applegreen, Shell Recharge, ...). Distance is straight-line, not a
     walking route — a match doesn't guarantee an actual walkable path.
     """)
     return
@@ -68,9 +68,11 @@ def _(filtered, go):
         lines_lat += [_m["panera_lat"], _m["charger_lat"], None]
         lines_lon += [_m["panera_lon"], _m["charger_lon"], None]
 
-    # Three categories, each its own trace so the legend can toggle them
-    # individually: Tesla-only (black), Tesla open to non-Tesla cars (red),
-    # EVgo (blue).
+    # One trace per network so the legend can toggle them individually:
+    # Tesla-only (black), Tesla open to non-Tesla cars (red), EVgo (blue),
+    # then one color per additional network from config.yml's networks.
+    # Matchers are case-insensitive substrings of the OpenChargeMap
+    # operator title; first match wins, so keep these disjoint.
     CATEGORIES = [
         ("Tesla (Tesla-only)", "#000000",
          lambda n: "tesla" in n and "non-tesla" not in n and "including" not in n),
@@ -78,6 +80,16 @@ def _(filtered, go):
          lambda n: "tesla" in n and ("non-tesla" in n or "including" in n)),
         ("EVgo", "#1f77b4",
          lambda n: "evgo" in n or "nrg" in n),
+        ("Rivian", "#ff7f0e",
+         lambda n: "rivian" in n),
+        ("Mercedes-Benz", "#9467bd",
+         lambda n: "mercedes" in n),
+        ("Applegreen", "#17becf",
+         lambda n: "applegreen" in n),
+        ("Shell Recharge", "#bcbd22",
+         lambda n: "shell" in n),
+        ("TotalEnergies", "#e377c2",
+         lambda n: "total" in n),
     ]
 
     def categorize(network):

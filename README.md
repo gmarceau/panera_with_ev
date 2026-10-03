@@ -3,13 +3,15 @@
 This program finds Panera Bread stores in New England and the
 mid-Atlantic (CT, ME, MA, NH, RI, VT, PA, NJ, NY, MD). It checks
 each store's distance to the nearest fast EV charger — Tesla
-Supercharger or EVgo. It keeps stores that are close enough to walk
-to a charger.
+Superchargers and EVgo stations by default. It keeps stores that are
+close enough to walk to a charger.
 
 ## What You Need
 
 - Python 3.10 or later
 - [`uv`](https://docs.astral.sh/uv/) (recommended), or `pip`
+- [Task](https://taskfile.dev) (recommended — `brew install go-task`),
+  used to run the commands below
 - An API key from openchargemap.org (free)
 
 ## Setup
@@ -20,11 +22,11 @@ to a charger.
    uv sync
    ```
 
-   Without `uv`:
+Without `uv`:
 
-   ```
-   pip install requests pyyaml plumbum
-   ```
+```
+pip install requests pyyaml plumbum pydantic
+```
 
 2. Get a free API key from openchargemap.org. Set it as an
    environment variable:
@@ -37,7 +39,26 @@ to a charger.
 
 ## How to Run It
 
-Run this command:
+The preferred way to drive the pipeline is with
+[Task](https://taskfile.dev) (see `taskfile.yml`):
+
+```
+task run      # full pipeline: refresh caches, write panera_chargers.yml
+task test     # run the test suite
+task explore  # open the marimo map of the results
+task clean    # delete the cache, the output, and Task's state
+```
+
+`task run` first refreshes the Panera location cache
+(`paneras_cache.json`) if `config.yml` or the code changed, then
+fetches live charger data from OpenChargeMap and rewrites
+`panera_chargers.yml`. Pass program options after `--`, e.g.:
+
+```
+task run -- --networks evgo --walk-miles 0.25
+```
+
+Without Task, run the program directly:
 
 ```
 uv run panera_tesla.py
@@ -65,7 +86,9 @@ a progress bar while it downloads Panera data (the slow part).
 
 ```
 --walk-miles VALUE    How close counts as "walkable." Default: 0.5
---networks VALUE      Comma-separated charger networks. Default: tesla,evgo
+--networks VALUE      Comma-separated charger networks. Default: every
+                      network in config.yml (tesla, evgo, rivian, mercedes,
+                      applegreen, shell, totalenergies)
 --output PATH         Where to write the YAML file. Default: panera_chargers.yml
 --refresh             Ignore the Panera cache and re-fetch from OpenStreetMap
 ```
@@ -78,6 +101,36 @@ uv run panera_tesla.py --networks evgo --walk-miles 0.25
 
 Run `uv run panera_tesla.py --help` to see this list from the
 program itself.
+
+## Configuration (`config.yml`)
+
+The main search parameters live in `config.yml` next to the script:
+the target states, the search bounding box, the walking distance,
+the minimum charger power, the cache and output files, and the
+charger networks with their OpenChargeMap operator IDs. The file is
+validated with [pydantic](https://docs.pydantic.dev/) when the
+program loads it — a missing parameter, an inverted bounding box, or
+a typo'd key fails immediately with a field-by-field error instead
+of silently matching nothing.
+
+Available charger networks (each maps to verified OpenChargeMap
+operator IDs, listed with their meaning in `config.yml`):
+
+| Network | Notes |
+|---|---|
+| `tesla` | Superchargers, both Tesla-only and NACS-opened (default) |
+| `evgo` | includes the old "NRG EVgo" brand (default) |
+| `rivian` | Rivian Adventure Network (DC fast; Waypoints L2 excluded) |
+| `mercedes` | Mercedes-Benz High-Power Charging (US) |
+| `applegreen` | Applegreen Fast Charge (US travel plazas) |
+| `shell` | Shell Recharge Solutions (US) |
+| `totalenergies` | European operator; no US stations in OpenChargeMap, so it returns nothing under the US filter |
+
+Example: every network at once:
+
+```
+uv run panera_tesla.py --networks tesla,evgo,rivian,mercedes,applegreen,shell,totalenergies
+```
 
 ## About the First Run
 
@@ -94,7 +147,7 @@ three attempts before it gives up.
 The YAML file holds one entry per match. Each entry shows:
 
 - The Panera store's name and address
-- The nearby charger's name, address, and network (Tesla or EVgo)
+- The nearby charger's name, address, and network
 - The distance between them, in miles
 
 ## Exploring the Results on a Map

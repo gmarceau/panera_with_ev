@@ -1,4 +1,6 @@
 import pytest
+import yaml
+from pydantic import ValidationError
 
 import panera_tesla as pt
 
@@ -31,21 +33,103 @@ def test_in_target_states_includes_mid_atlantic_expansion():
 
 
 def test_operator_ids_for_single_network():
-    assert pt.operator_ids_for(["tesla"]) == pt.NETWORK_OPERATOR_IDS["tesla"]
+    assert pt.operator_ids_for(["tesla"]) == "23,3534"
 
 
 def test_operator_ids_for_multiple_networks():
     ids = pt.operator_ids_for(["tesla", "evgo"])
-    assert pt.NETWORK_OPERATOR_IDS["tesla"] in ids
-    assert pt.NETWORK_OPERATOR_IDS["evgo"] in ids
-    # every individual ID should appear, comma-joined, no duplicates lost
-    want = set((pt.NETWORK_OPERATOR_IDS["tesla"] + "," + pt.NETWORK_OPERATOR_IDS["evgo"]).split(","))
-    assert set(ids.split(",")) == want
+    # every individual ID should appear, comma-joined, none lost
+    assert set(ids.split(",")) == {"23", "3534", "15", "3252"}
 
 
 def test_operator_ids_for_unknown_network_raises():
     with pytest.raises(ValueError):
         pt.operator_ids_for(["chargepoint"])
+
+
+def test_config_defines_all_networks():
+    # Operator IDs verified against
+    # https://api.openchargemap.io/v3/referencedata/ — don't guess new ones.
+    expected = {
+        "tesla": [23, 3534],
+        "evgo": [15, 3252],
+        "rivian": [3607],
+        "mercedes": [3827],
+        "applegreen": [3516],
+        "shell": [59],
+        "totalenergies": [3447, 3571, 25],
+    }
+    assert set(pt.CONFIG.networks) == set(expected)
+    for name, ids in expected.items():
+        assert list(pt.CONFIG.networks[name].operator_ids) == ids
+
+
+def test_operator_ids_for_new_networks():
+    ids = pt.operator_ids_for(
+        ["rivian", "mercedes", "applegreen", "shell", "totalenergies"])
+    assert ids == "3607,3827,3516,59,3447,3571,25"
+
+
+def _write_config(tmp_path, mutate=None):
+    """The real config.yml (mutated if requested) written to tmp_path."""
+    data = pt.CONFIG.model_dump(mode="json")
+    if mutate:
+        mutate(data)
+    p = tmp_path / "config.yml"
+    p.write_text(yaml.safe_dump(data))
+    return p
+
+
+def test_load_config_accepts_the_real_config():
+    assert pt.load_config(pt.CONFIG_FILE) == pt.CONFIG
+
+
+def test_load_config_rejects_unknown_default_network(tmp_path):
+    p = _write_config(tmp_path, lambda d: d.update(default_networks=["chargepoint"]))
+    with pytest.raises(ValidationError):
+        pt.load_config(p)
+
+
+def test_load_config_rejects_inverted_bbox(tmp_path):
+    p = _write_config(tmp_path, lambda d: d.update(search_bbox=[47.5, -66.9, 37.8, -80.75]))
+    with pytest.raises(ValidationError):
+        pt.load_config(p)
+
+
+def test_load_config_rejects_empty_operator_ids(tmp_path):
+    p = _write_config(tmp_path, lambda d: d["networks"].update(shell={"operator_ids": []}))
+    with pytest.raises(ValidationError):
+        pt.load_config(p)
+
+
+def test_load_config_rejects_unknown_key(tmp_path):
+    p = _write_config(tmp_path, lambda d: d.update(walk_mile=0.5))  # typo'd key
+    with pytest.raises(ValidationError):
+        pt.load_config(p)
+
+
+def test_load_config_rejects_missing_required_field(tmp_path):
+    p = _write_config(tmp_path, lambda d: d.pop("min_kw"))
+    with pytest.raises(ValidationError):
+        pt.load_config(p)
+
+
+def test_load_config_rejects_bad_url(tmp_path):
+    p = _write_config(tmp_path, lambda d: d.update(ocm_url="ftp://chargers.example"))
+    with pytest.raises(ValidationError):
+        pt.load_config(p)
+
+
+def test_load_config_rejects_bad_state_code(tmp_path):
+    p = _write_config(tmp_path, lambda d: d["target_states"].update({"CT": "Connecticut"}))
+    with pytest.raises(ValidationError):
+        pt.load_config(p)
+
+
+def test_load_config_rejects_nonpositive_walk_miles(tmp_path):
+    p = _write_config(tmp_path, lambda d: d.update(walk_miles=0))
+    with pytest.raises(ValidationError):
+        pt.load_config(p)
 
 
 def _poi(title, network_title, state, power_kw, operational=True):
@@ -149,8 +233,8 @@ def test_cli_defaults(monkeypatch):
     pt.PaneraChargerApp.run(["prog"], exit=False)
 
     assert len(calls) == 1
-    assert calls[0]["walk_miles"] == pt.WALK_MILES
-    assert calls[0]["networks"] == ["tesla", "evgo"]
+    assert calls[0]["walk_miles"] == pt.CONFIG.walk_miles
+    assert calls[0]["networks"] == pt.CONFIG.default_networks
     assert calls[0]["output_path"] == "panera_chargers.yml"
     assert calls[0]["refresh"] is False
 

@@ -15,5 +15,8 @@ __pycache__/
 paneras_cache.json
 panera_chargers.yml
 
+# Task runner's up-to-date state (https://taskfile.dev)
+.task/
+
 # stray lock file
 .claude/scheduled_tasks.lock

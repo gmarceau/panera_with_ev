@@ -1,0 +1,97 @@
+# Main search parameters for panera_tesla.py, validated on load with
+# pydantic (see SearchConfig in panera_tesla.py). A bad value here fails
+# fast with a field-by-field error instead of silently returning no results.
+
+# OpenStreetMap Overpass API endpoint used to fetch Panera locations.
+overpass_url: https://overpass-api.de/api/interpreter
+
+# OpenChargeMap API endpoint used to fetch charger locations.
+ocm_url: https://api.openchargemap.io/v3/poi/
+
+# States to search, as OpenStreetMap/ISO 3166-2 area codes mapped to the
+# full state names OpenChargeMap may put in AddressInfo.StateOrProvince
+# (it returns either form; both are accepted).
+target_states:
+  US-CT: Connecticut
+  US-ME: Maine
+  US-MA: Massachusetts
+  US-NH: New Hampshire
+  US-RI: Rhode Island
+  US-VT: Vermont
+  US-PA: Pennsylvania
+  US-NJ: New Jersey
+  US-NY: New York
+  US-MD: Maryland
+
+# Bounding box for the OpenChargeMap query: min_lat, min_lon, max_lat,
+# max_lon. min_lat/min_lon widened south/west to cover Maryland's southern
+# tip (~37.9) and PA/NY's western edge (~-80.5); max_lat/max_lon unchanged
+# (Maine still the north/east extreme).
+search_bbox: [37.80, -80.75, 47.50, -66.90]
+
+# Charger networks, each mapped to its OpenChargeMap operator IDs
+# (https://api.openchargemap.io/v3/referencedata/, looked up rather than
+# guessed). Filtering on these server-side replaces fragile substring
+# matching on operator/title text.
+networks:
+  tesla:
+    # 23 = "Tesla (Tesla-only charging)", 3534 = "Tesla (including
+    # non-tesla)" (NACS-opened Superchargers).
+    operator_ids: [23, 3534]
+  evgo:
+    # 15 = "eVgo Network", 3252 = "NRG EVgo" (EVgo's prior brand name).
+    operator_ids: [15, 3252]
+  rivian:
+    # 3607 = "Rivian Adventure Network" (DC fast). Rivian Waypoints
+    # (3617) are Level 2 destination chargers, excluded by the DC-fast
+    # filter below — not listed.
+    operator_ids: [3607]
+  mercedes:
+    # 3827 = "Mercedes-Benz High-Power Charging (US)".
+    operator_ids: [3827]
+  applegreen:
+    # 3516 = "Applegreen Fast Charge" (Applegreen's US travel-plaza arm).
+    operator_ids: [3516]
+  shell:
+    # 59 = "Shell Recharge Solutions (US)" (ex-Greenlots). Shell's
+    # acquired-but-still-separately-branded Volta network (50) is not
+    # included.
+    operator_ids: [59]
+  totalenergies:
+    # 3447 = "TotalEnergies (FR)", 3571 = "TotalEnergies (ES)",
+    # 25 = "Total Energies (UK)" (old spelling still in use). No US
+    # operator exists in OpenChargeMap, so this network returns nothing
+    # under the US country filter — defined for completeness.
+    operator_ids: [3447, 3571, 25]
+
+# Networks searched when --networks is not passed on the command line.
+# totalenergies is a European operator with no US stations in
+# OpenChargeMap, so it contributes nothing under the US country filter —
+# defined for completeness.
+default_networks: [tesla, evgo, rivian, mercedes, applegreen, shell, totalenergies]
+
+# ChargerTypes level 3 = "High (Over 40kW)", i.e. DC fast charging — this
+# excludes Level 1/2 destination/wall chargers without relying on each
+# connection's (often missing) PowerKW value.
+dc_fast_level_id: 3
+
+# Belt-and-suspenders on top of the server-side level filter: a POI only
+# counts if some connection is rated at least this many kW. Below 50 a
+# Tesla charger is a *destination* charger, not a Supercharger.
+min_kw: 50
+
+# Match distance cutoff, in miles ("same mall/plaza" walking distance).
+walk_miles: 0.5
+
+# OpenChargeMap per-query result limit; a result count at exactly this
+# number warns that output may be truncated.
+max_results: 2000
+
+# Panera cache: where the OpenStreetMap results are kept and how long
+# they stay fresh (seconds), so a later failure in the pipeline doesn't
+# force re-running the slow, rate-limited Overpass queries.
+cache_file: paneras_cache.json
+cache_max_age_seconds: 86400
+
+# Where the matched Panera/charger pairs are written.
+output_file: panera_chargers.yml

@@ -1,0 +1,62 @@
+# Task runner for panera_tesla.py — https://taskfile.dev
+# `task --list` shows every task with its description.
+
+version: '3'
+
+# Cache policy, split by how fast each dataset changes:
+#
+#   Panera locations (OpenStreetMap) — slow-changing. Cached in
+#   paneras_cache.json behind two layers, each answering a different
+#   question:
+#     - Task (fetch-paneras below): "did config.yml or panera_tesla.py
+#       change since this cache was written?" Checksums re-fetch
+#       immediately when the target states or the query change, instead
+#       of waiting out the TTL below.
+#     - The app itself: "is the cache older than cache_max_age_seconds
+#       (24h)?" fetch_paneras() enforces this on every pipeline run, so
+#       plain `uv run panera_tesla.py` keeps working without Task.
+#
+#   Chargers (OpenChargeMap) and the network set — fast-changing, and
+#   never cached: the pipeline task carries no up-to-date checks, so
+#   every run re-queries OCM and rewrites the output.
+
+tasks:
+  fetch-paneras:
+    desc: Refresh paneras_cache.json from OpenStreetMap, if stale
+    sources:
+      - config.yml          # target_states and overpass_url drive the fetch
+      - panera_tesla.py     # so does the Overpass query itself
+    generates:
+      - paneras_cache.json
+    # refresh=True is load-bearing: Task runs this only when the checksums
+    # above no longer match, and then it must actually rewrite the cache —
+    # bypassing the app's 24h TTL — or a config edit made within the TTL
+    # window would leave this task permanently marked out of date.
+    cmd: uv run python -c "import panera_tesla as pt; pt.fetch_paneras(refresh=True)"
+
+  run:
+    desc: Full pipeline — cached Paneras, live chargers, write panera_chargers.yml
+    deps: [fetch-paneras]
+    # No sources/status here on purpose: chargers come and go, and
+    # --networks may differ from the last run, so every invocation queries
+    # OpenChargeMap and rewrites the output. CLI flags pass through, e.g.:
+    #   task run -- --networks evgo --walk-miles 0.25
+    cmd: uv run panera_tesla.py
+
+  test:
+    desc: Run the test suite
+    sources:
+      - panera_tesla.py
+      - config.yml
+      - tests/**/*.py
+    cmd: uv run pytest
+
+  explore:
+    desc: Open the marimo map of the results (run `task run` first)
+    cmd: uv run marimo edit explore_map.py
+
+  clean:
+    desc: Delete the cache, the output, and Task's up-to-date state
+    # -f/-rf: never prompt (cp/mv/rm may be aliased interactive on this
+    # machine — see AGENTS.md).
+    cmd: rm -f paneras_cache.json panera_chargers.yml && rm -rf .task
